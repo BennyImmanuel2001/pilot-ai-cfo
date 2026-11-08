@@ -1,0 +1,206 @@
+{
+  "info": {
+    "name": "Pilot API",
+    "description": "Endpoints of the Pilot server. /api/chat streams Server-Sent Events (text, dashboard, action, done). Approve returns a simulated result by default (PAYPAL_MODE=simulate); with PAYPAL_MODE=sandbox and sandbox keys it calls the PayPal sandbox, falling back to a simulated result on error.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8787"
+    },
+    {
+      "key": "actionId",
+      "value": ""
+    },
+    {
+      "key": "orderId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/health"
+      }
+    },
+    {
+      "name": "Default dashboard",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/chat/default-dashboard"
+      }
+    },
+    {
+      "name": "Chat: Can I afford a PS5?",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"messages\": [{ \"role\": \"user\", \"content\": \"Can I afford a PS5?\" }]\n}"
+        },
+        "description": "Copy the id from the `action` event into the actionId variable."
+      }
+    },
+    {
+      "name": "Chat: Food spend last 6 months",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"messages\": [{ \"role\": \"user\", \"content\": \"How much did I spend on food in the last 6 months?\" }]\n}"
+        }
+      }
+    },
+    {
+      "name": "Chat: Project my expenses",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"messages\": [{ \"role\": \"user\", \"content\": \"Project my expenses for this month\" }]\n}"
+        }
+      }
+    },
+    {
+      "name": "Chat: Find bills to autopay",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"messages\": [{ \"role\": \"user\", \"content\": \"Find bills I should autopay\" }]\n}"
+        }
+      }
+    },
+    {
+      "name": "Approve action",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/actions/{{actionId}}/approve"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const j = pm.response.json();",
+              "if (j.orderId) pm.collectionVariables.set('orderId', j.orderId);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Decline action",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/actions/{{actionId}}/decline"
+      }
+    },
+    {
+      "name": "Capture order",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/actions/{{actionId}}/capture",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"orderId\": \"{{orderId}}\"\n}"
+        },
+        "description": "Simulated orders (DEMO-*) capture immediately. Real sandbox orders work after the buyer approves at the approval link; before that it returns status NOT_APPROVED."
+      }
+    },
+    {
+      "name": "Action status (live from PayPal in sandbox mode)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/actions/{{actionId}}/status"
+      }
+    },
+    {
+      "name": "PayPal integration status",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/paypal/status"
+      }
+    },
+    {
+      "name": "Simulate webhook: buyer approved order",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/paypal/simulate",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"actionId\": \"{{actionId}}\",\n  \"eventType\": \"CHECKOUT.ORDER.APPROVED\"\n}"
+        },
+        "description": "Simulate mode only. Other types: PAYMENT.CAPTURE.COMPLETED, PAYMENT.CAPTURE.DENIED, BILLING.SUBSCRIPTION.ACTIVATED, PAYMENT.SALE.COMPLETED, BILLING.SUBSCRIPTION.PAYMENT.FAILED."
+      }
+    },
+    {
+      "name": "Webhook receiver (expects PayPal-signed deliveries)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/paypal/webhook",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"WH-TEST\",\n  \"event_type\": \"CHECKOUT.ORDER.APPROVED\",\n  \"resource\": { \"id\": \"{{orderId}}\" }\n}"
+        },
+        "description": "Without PayPal's transmission headers this returns 401 (sandbox mode) or 409 (simulate mode). Send signed events with a real sandbox payment or the Developer Dashboard's webhook simulator."
+      }
+    },
+    {
+      "name": "Sync sandbox transactions",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/paypal/sync"
+      }
+    }
+  ]
+}

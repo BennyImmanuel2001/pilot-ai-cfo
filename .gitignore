@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+*.log
+# Demo videos are published on YouTube; keep the clone small
+video/*.mp4
+.vscode/
+gitignore/

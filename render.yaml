@@ -1,0 +1,52 @@
+services:
+  # API: Express + agent + PayPal calls (secrets live here only)
+  - type: web
+    name: pilot-api
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build --workspace=server
+    startCommand: npm run start --workspace=server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: LLM_BASE_URL
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        sync: false
+      - key: PAYPAL_MODE
+        value: simulate # set to sandbox to send real PayPal sandbox requests
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_BASE_URL
+        value: https://api-m.sandbox.paypal.com
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false # from: npm run paypal:webhooks -- create https://<pilot-api host>/api/paypal/webhook
+      - key: PAYPAL_SYNC_TRANSACTIONS
+        value: "false"
+      - key: ELASTIC_URL
+        sync: false
+      - key: ELASTIC_API_KEY
+        sync: false
+      - key: CHANNEL3_API_KEY
+        sync: false
+      - key: APP_URL
+        sync: false # set to the pilot-web URL, e.g. https://pilot-web.onrender.com
+
+  # Web: static Vite build
+  - type: web
+    name: pilot-web
+    runtime: static
+    buildCommand: npm install --include=dev && npm run build --workspace=web
+    staticPublishPath: web/dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false # set to the pilot-api URL, e.g. https://pilot-api.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
