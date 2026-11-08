@@ -1,5 +1,7 @@
 # Pilot: an AI CFO that decides, then acts
 
+>Youtube video: https://youtu.be/DrGIVSED_ak
+
 > Ask your money a question. Get a decision, a dashboard, and a PayPal action.
 
 Pilot is a chat-driven financial agent for single-income households and gig workers. Ask "Can I afford a PS5?" and Pilot projects your cash flow to month end, returns **Yes / Wait / No** with the math, reshapes a live dashboard around the answer, and drafts a PayPal sandbox order that only goes through when you approve it.
