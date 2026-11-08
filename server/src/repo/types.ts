@@ -6,8 +6,22 @@ export interface Transaction {
   amount: number; // negative = spend, positive = income
   method: 'paypal' | 'card' | 'bank';
   recurring: boolean;
-  /** `seed` = generated demo data; `paypal` = synced from the PayPal sandbox account (Transaction Search). */
-  source?: 'seed' | 'paypal';
+  /**
+   * `seed` = generated demo data; `paypal` = synced from the PayPal sandbox account (Transaction Search);
+   * `pilot` = a payment completed in Pilot (recorded at capture, before Transaction Search shows it).
+   */
+  source?: TransactionSource;
+}
+
+export type TransactionSource = 'seed' | 'paypal' | 'pilot';
+export type LiveSource = Exclude<TransactionSource, 'seed'>;
+
+/** Where the current balance came from. */
+export interface BalanceInfo {
+  value: number;
+  source: 'seed' | 'paypal';
+  /** When it was read from PayPal (ISO), if it came from PayPal. */
+  asOf?: string;
 }
 
 export interface UserProfile {
@@ -66,6 +80,11 @@ export interface IRepo {
   profile(): UserProfile;
   recentTransactions(limit: number): Transaction[];
   /** Replaces all transactions from `source` with `txns` (idempotent re-sync). */
-  replaceSource(source: 'paypal', txns: Transaction[]): void;
-  countBySource(): { seed: number; paypal: number };
+  replaceSource(source: LiveSource, txns: Transaction[]): void;
+  /** Transactions from a live source (for persistence). */
+  getSource(source: LiveSource): Transaction[];
+  countBySource(): Record<TransactionSource, number>;
+  /** Sets the current balance (from PayPal, or a restored snapshot). */
+  setBalance(info: BalanceInfo): void;
+  balanceInfo(): BalanceInfo;
 }

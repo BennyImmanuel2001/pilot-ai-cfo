@@ -18,7 +18,7 @@ export function ChartCard({ widget }: { widget: ChartWidget }) {
     : widget.series.some(s => s.values.length > 0));
 
   const options = useMemo<AgChartOptions>(() => {
-    const base = { theme: chartTheme(theme), animation: { enabled: true, duration: 600 } };
+    const base = { theme: chartTheme(theme) };
     const tooltip = (title: (d: Record<string, unknown>) => string, value: (d: Record<string, unknown>) => number) => ({
       renderer: ({ datum }: { datum: Record<string, unknown> }) => ({ title: title(datum), content: fmt(value(datum)) }),
     });

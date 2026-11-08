@@ -258,5 +258,10 @@ export function useChat({ onDashboard, onStart, onFinish, onError, onDemo }: Use
     }
   }, [onDemo, onError]);
 
-  return { messages, actions, isLoading, send, approve, decline, capture, applyStatus };
+  /** Re-reads one action's PayPal status now (used when the PayPal popup reports back). */
+  const refreshAction = useCallback((id: string) => {
+    void fetchActionStatus(id).then(applySnapshot).catch(() => undefined);
+  }, [applySnapshot]);
+
+  return { messages, actions, isLoading, send, approve, decline, capture, applyStatus, refreshAction };
 }

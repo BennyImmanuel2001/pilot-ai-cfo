@@ -11,7 +11,8 @@ import { PendingAction, isLLMConfigured } from './agent/loop';
 import { checkPayPalCredentials, hasPayPalCredentials, paypalHealth, paypalMode } from './paypal/client';
 import { serviceState } from './status';
 import { WebhookProcessor } from './paypal/webhooks';
-import { startTransactionSync, syncState } from './paypal/transactions';
+import { onSynced, startTransactionSync, syncState } from './paypal/transactions';
+import { loadState, startAutosave } from './store';
 
 const PORT = parseInt(process.env.PORT || '8787', 10);
 
@@ -33,6 +34,10 @@ async function main() {
 
   const pendingActions = new Map<string, PendingAction>();
   const webhooks = new WebhookProcessor(pendingActions);
+  // Continue from the last run (proposals, Pilot payments, last balance), then refresh from PayPal.
+  loadState(repo, pendingActions);
+  const save = startAutosave(repo, pendingActions);
+  onSynced(save);
   startTransactionSync(repo);
 
   const app = express();
@@ -42,7 +47,7 @@ async function main() {
 
   // Routes
   app.use('/api/chat', createChatRouter(repo, pendingActions));
-  app.use('/api/actions', createActionsRouter(pendingActions, webhooks));
+  app.use('/api/actions', createActionsRouter(pendingActions, webhooks, repo, save));
   app.use('/api/paypal', createPayPalRouter(pendingActions, webhooks, repo));
   app.get('/api/events', eventsHandler);
 
@@ -59,7 +64,9 @@ async function main() {
       paypalCredentials: hasPayPalCredentials,
       // How PayPal status updates arrive: `simulated` (seed data), `verified` (signed sandbox webhooks) or `unconfigured`.
       paypalWebhooks: webhookMode(),
-      liveTransactions: syncState.enabled ? (syncState.error ? 'error' : 'synced') : 'off',
+      liveTransactions: syncState.enabled ? (syncState.error ? 'error' : syncState.lastSyncAt ? 'synced' : 'pending') : 'off',
+      // `paypal` = read from the PayPal sandbox account at the last sync; `seed` = demo profile.
+      balanceSource: repo.balanceInfo().source,
       elastic: elasticRepo?.isLive ? 'configured' : elasticRepo ? 'fallback' : 'disabled',
       channel3: !process.env.CHANNEL3_API_KEY ? 'mock' : c3State.ok === false ? 'fallback' : 'configured',
       transactions: repo.recentTransactions(Number.MAX_SAFE_INTEGER).length,

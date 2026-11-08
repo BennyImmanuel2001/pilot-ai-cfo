@@ -5,13 +5,20 @@ import { recordStatus } from '../paypal/events';
 import { refreshFromPayPal, TERMINAL } from '../paypal/live';
 import { scheduleSimulatedApproval, simulatedEvent } from '../paypal/simulator';
 import { WebhookProcessor } from '../paypal/webhooks';
+import type { IRepo } from '../repo/types';
+import { recordPurchase } from '../store';
 
 const NOT_FOUND = {
   error: 'This proposal has expired or the server was restarted. Ask Pilot again for a fresh one.',
   code: 'NOT_FOUND',
 };
 
-export function createActionsRouter(pendingActions: Map<string, PendingAction>, processor: WebhookProcessor) {
+export function createActionsRouter(
+  pendingActions: Map<string, PendingAction>,
+  processor: WebhookProcessor,
+  repo: IRepo,
+  save: () => void,
+) {
   const router = Router();
 
   const statusBody = (action: PendingAction) => ({
@@ -133,6 +140,9 @@ export function createActionsRouter(pendingActions: Map<string, PendingAction>, 
         recordStatus(action, { status: result.status, source: 'pilot' });
       }
       action.captured = { status: result.status, demo: result.demo };
+      // The purchase shows up in the dashboards and the balance right away, and survives a restart.
+      if (result.status === 'COMPLETED') recordPurchase(repo, action, result.captureId);
+      save();
     }
     res.json(result);
   });

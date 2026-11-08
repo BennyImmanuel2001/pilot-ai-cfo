@@ -6,6 +6,9 @@ import {
   RecurringPayment,
   UpcomingBill,
   UserProfile,
+  BalanceInfo,
+  LiveSource,
+  TransactionSource,
 } from './types';
 import { InMemoryRepo } from './InMemoryRepo';
 import { seedTransactions, userProfile } from '../data/seed';
@@ -83,11 +86,23 @@ export class ElasticRepo implements IRepo {
   }
 
   profile(): UserProfile {
-    return userProfile;
+    return this.fallback.profile();
   }
 
   balance(): number {
-    return userProfile.balance;
+    return this.fallback.balance();
+  }
+
+  setBalance(info: BalanceInfo): void {
+    this.fallback.setBalance(info);
+  }
+
+  balanceInfo(): BalanceInfo {
+    return this.fallback.balanceInfo();
+  }
+
+  getSource(source: LiveSource): Transaction[] {
+    return this.fallback.getSource(source);
   }
 
   query(opts: QueryOptions): Transaction[] | GroupedResult[] {
@@ -96,12 +111,12 @@ export class ElasticRepo implements IRepo {
     return this.fallback.query(opts);
   }
 
-  replaceSource(source: 'paypal', txns: Transaction[]): void {
+  replaceSource(source: LiveSource, txns: Transaction[]): void {
     // Reads are served from memory (see query()), so synced sandbox transactions live there too.
     this.fallback.replaceSource(source, txns);
   }
 
-  countBySource(): { seed: number; paypal: number } {
+  countBySource(): Record<TransactionSource, number> {
     return this.fallback.countBySource();
   }
 

@@ -27,7 +27,6 @@ export function TimelineCard({ widget }: { widget: TimelineWidget }) {
 
     const opts = {
       theme: chartTheme(theme),
-      animation: { enabled: true, duration: 700 },
       legend: { enabled: false },
       series: [
         {

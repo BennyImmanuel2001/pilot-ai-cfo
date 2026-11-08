@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle2, Clock3, ExternalLink, Loader2, XCircle, CreditCard, Repeat } from 'lucide-react';
 import type { StatusEntry, StatusSource } from '../../lib/api';
 import { useActions } from '../../contexts/ActionsContext';
+import { openPayPal } from '../../lib/paypalReturn';
 import { formatCurrency } from '../../lib/format';
 
 interface Props {
@@ -109,9 +110,9 @@ export function ActionControls({ actionId, approveLabel, compact }: Props) {
         )}
         <div className="flex flex-wrap gap-2">
           {result.approvalUrl && (
-            <a href={result.approvalUrl} target="_blank" rel="noopener noreferrer" className={`btn-secondary ${size}`}>
+            <button type="button" onClick={() => openPayPal(result.approvalUrl!)} className={`btn-secondary ${size}`}>
               {isOrder ? 'Complete in PayPal sandbox' : 'Approve in PayPal sandbox'} <ExternalLink size={12} />
-            </a>
+            </button>
           )}
           {isOrder && result.orderId && (
             <button

@@ -140,6 +140,8 @@ export interface SubscriptionResult {
 export interface CaptureResult {
   status: 'COMPLETED' | 'NOT_APPROVED' | 'FAILED' | string;
   demo: boolean;
+  /** PayPal capture id: the same id Transaction Search reports for this payment. */
+  captureId?: string;
   message?: string;
 }
 
@@ -177,14 +179,15 @@ export async function createOrder(amount: number, description: string): Promise<
 
 export async function captureOrder(orderId: string): Promise<CaptureResult> {
   if (orderId.startsWith('DEMO')) {
-    return { status: 'COMPLETED', demo: true, message: 'Simulated payment. Nothing was charged.' };
+    return { status: 'COMPLETED', demo: true, captureId: `DEMO-CAPTURE-${Date.now()}`, message: 'Simulated payment. Nothing was charged.' };
   }
   if (!isPayPalConfigured) {
     return { status: 'FAILED', demo: false, message: 'PayPal is not enabled on this server, so a real order cannot be captured.' };
   }
   try {
     const data = await paypalFetch(`/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, 'POST');
-    return { status: (data.status as string) ?? 'COMPLETED', demo: false };
+    const capture = (data.purchase_units as Array<{ payments?: { captures?: Array<{ id?: string }> } }> | undefined)?.[0]?.payments?.captures?.[0];
+    return { status: (data.status as string) ?? 'COMPLETED', demo: false, captureId: capture?.id };
   } catch (err) {
     const issue = err instanceof PayPalError ? err.issue : undefined;
     if (issue === 'ORDER_NOT_APPROVED' || issue === 'PAYER_ACTION_REQUIRED') {
@@ -306,6 +309,19 @@ export async function verifyWebhookSignature(headers: WebhookHeaders, event: unk
     webhook_event: event,
   });
   return data.verification_status === 'SUCCESS';
+}
+
+/**
+ * Live USD balance of the sandbox account that owns the app (GET /v1/reporting/balances).
+ * Needs the same "Transaction search" feature as Transaction Search.
+ */
+export async function getBalance(): Promise<number | null> {
+  const data = await paypalFetch('/v1/reporting/balances?currency_code=USD', 'GET');
+  type Money = { value?: string; currency_code?: string };
+  const rows = (data.balances ?? []) as Array<{ currency?: string; available_balance?: Money; total_balance?: Money }>;
+  const usd = rows.find(b => b.currency === 'USD') ?? rows[0];
+  const value = Number(usd?.available_balance?.value ?? usd?.total_balance?.value);
+  return Number.isFinite(value) ? value : null;
 }
 
 export interface PayPalTransaction {

@@ -27,7 +27,7 @@ services:
       - key: PAYPAL_WEBHOOK_ID
         sync: false # from: npm run paypal:webhooks -- create https://<pilot-api host>/api/paypal/webhook
       - key: PAYPAL_SYNC_TRANSACTIONS
-        sync: false # "true" once Transaction search is enabled on the sandbox app
+        sync: false # blank = load transactions + balance from PayPal on start (sandbox mode); "false" = seed data only
       - key: ELASTIC_URL
         sync: false
       - key: ELASTIC_API_KEY

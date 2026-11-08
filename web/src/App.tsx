@@ -8,7 +8,8 @@ import { useDashboard } from './hooks/useDashboard';
 import { useChat } from './hooks/useChat';
 import { ActionsContext } from './contexts/ActionsContext';
 import { useToast } from './contexts/ToastContext';
-import { fetchHealth, notifyPayPalReturn, subscribeStatus, type HealthInfo } from './lib/api';
+import { fetchHealth, subscribeStatus, type HealthInfo } from './lib/api';
+import { onPayPalReturn } from './lib/paypalReturn';
 
 function useIsNarrow(maxWidth = 900) {
   const query = `(max-width: ${maxWidth - 1}px)`;
@@ -35,23 +36,6 @@ export default function App() {
     void fetchHealth().then(setHealth);
   }, []);
 
-  // PayPal redirects back here after sandbox approval (?paypal=success&token=<order id> or &subscription_id=…).
-  // The server re-reads the live status and pushes it to the tab that started the payment.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const outcome = params.get('paypal');
-    if (!outcome) return;
-    window.history.replaceState(null, '', window.location.pathname);
-    if (outcome !== 'success') {
-      toast('PayPal approval was cancelled.');
-      return;
-    }
-    const token = params.get('token') ?? undefined;
-    const subscriptionId = params.get('subscription_id') ?? undefined;
-    toast('Approved in PayPal. The Pilot tab you started from updates automatically.', 'success');
-    if (token || subscriptionId) void notifyPayPalReturn({ token, subscription_id: subscriptionId }).catch(() => undefined);
-  }, [toast]);
-
   const onStart = useCallback(() => {
     dashboard.setIsLoading(true);
     if (isNarrow) window.setTimeout(() => setDrawerOpen(false), 900);
@@ -69,6 +53,18 @@ export default function App() {
   // Live PayPal status: verified sandbox webhooks, live polls, or simulated webhooks in simulate mode.
   const { applyStatus } = chat;
   useEffect(() => subscribeStatus(applyStatus), [applyStatus]);
+
+  // The PayPal popup reports back here after approval; this tab keeps its conversation and refreshes
+  // just that order or subscription (the live status also arrives over /api/events).
+  const { refreshAction } = chat;
+  useEffect(() => onPayPalReturn(msg => {
+    if (msg.outcome !== 'success') {
+      toast('PayPal approval was cancelled. Nothing was charged.');
+      return;
+    }
+    toast(msg.token && !msg.subscriptionId ? 'Approved in PayPal. You can capture the payment now.' : 'Approved in PayPal.', 'success');
+    if (msg.actionId) refreshAction(msg.actionId);
+  }), [refreshAction, toast]);
 
   const actionsApi = useMemo(() => ({
     actions: chat.actions,

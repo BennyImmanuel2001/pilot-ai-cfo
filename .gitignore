@@ -6,3 +6,5 @@ dist/
 video/*.mp4
 .vscode/
 gitignore/
+# Local state (proposals, Pilot payments, last PayPal sync)
+.data/

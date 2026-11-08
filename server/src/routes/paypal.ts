@@ -129,6 +129,7 @@ export function createPayPalRouter(pendingActions: Map<string, PendingAction>, p
         endpoint: '/api/paypal/webhook',
       },
       transactions: { ...syncState, counts: repo.countBySource() },
+      balance: repo.balanceInfo(),
     });
   });
 

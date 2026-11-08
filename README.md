@@ -69,10 +69,10 @@ Restart `npm run dev`; `/api/health` now reports `"llm": "configured"`. Ask free
 
 ### 3. With the PayPal sandbox
 
-1. Sign in at [developer.paypal.com](https://developer.paypal.com/dashboard/applications/sandbox) (any PayPal account works) and create a sandbox REST app under **Apps & Credentials → Sandbox**.
+1. Sign in at [developer.paypal.com](https://developer.paypal.com/dashboard/applications/sandbox) (any PayPal account works). Under **Testing Tools → Sandbox Accounts**, use (or create) a **Business** and a **Personal** account with country **United States**: Pilot charges in USD, and accounts registered in some countries (for example India) are refused with *"This seller doesn't accept payments in your currency"*. Then create a sandbox REST app under **Apps & Credentials → Sandbox** for the US business account.
 2. In `.env`: `PAYPAL_MODE=sandbox`, `PAYPAL_CLIENT_ID=…`, `PAYPAL_CLIENT_SECRET=…`. Restart. Health shows `"paypal": "sandbox"`.
-3. Ask *Can I afford a PS5?*, click **Pay with PayPal**, then **Complete in PayPal sandbox**. Log in with the sandbox **personal** account from **Testing Tools → Sandbox Accounts** (view its email and password there) and approve.
-4. Back in Pilot the card switches to *Buyer approved* within 5 seconds (live polling, or a webhook if configured). Click **Capture payment**. The payment appears in the sandbox business account.
+3. Ask *Can I afford a PS5?*, click **Pay with PayPal**, then **Complete in PayPal sandbox**. PayPal opens in a popup: log in with the sandbox **personal** account (its email and password are under **Testing Tools → Sandbox Accounts → … → View/Edit account**; the business account cannot pay itself) and approve. The popup closes itself and your Pilot tab keeps its conversation.
+4. Back in Pilot the card switches to *Buyer approved* within seconds (the popup reports back, plus a webhook if configured, or the 5s poll). Click **Capture payment**. The purchase is added to your transactions and taken off the balance straight away, and is kept across restarts (see [Data and persistence](#data-and-persistence)).
 5. Optional: webhooks and live transactions, see [PayPal sandbox: status updates, webhooks and live data](#paypal-sandbox-status-updates-webhooks-and-live-data).
 
 The sandbox keeps everything you create permanently (orders expire after 3 hours if not approved); `simulate` mode sends nothing.
@@ -98,6 +98,8 @@ curl -N http://localhost:8787/api/events          # live status stream
 | Dashboard shows "Can't reach the server" | The API isn't running: check the `[server]` lines in the `npm run dev` output |
 | Changed `.env` but nothing happened | Restart `npm run dev`; `.env` is read at startup |
 | `"liveTransactions": "error"` in health | Enable **Transaction search** on the sandbox app (Features), or set `PAYPAL_SYNC_TRANSACTIONS=false` |
+| PayPal says *"This seller doesn't accept payments in your currency"* | Use US sandbox accounts (see [With the PayPal sandbox](#3-with-the-paypal-sandbox)) |
+| The PayPal window didn't open | Allow pop-ups for the Pilot site; Pilot falls back to a new tab, which closes itself after approval |
 | Capture says the order is not approved | Approve it in the PayPal sandbox window first; this is PayPal's real `ORDER_NOT_APPROVED` response |
 
 ## Features
@@ -118,7 +120,8 @@ curl -N http://localhost:8787/api/events          # live status stream
 | `ELASTIC_URL`, `ELASTIC_API_KEY` | Index the transactions in Elastic on startup (key optional for a local cluster) | In-memory store |
 | `CHANNEL3_API_KEY` | Live product and price search | Mock catalog |
 | `PAYPAL_WEBHOOK_ID` | Id of the sandbox app's webhook (created with `npm run paypal:webhooks -- create <url>`). Every delivery is verified with PayPal against it | Webhooks rejected; live status comes from polling |
-| `PAYPAL_SYNC_TRANSACTIONS` | `true` pulls the sandbox account's last 31 days of activity (Transaction Search) into the dashboards next to the seed data, refreshed every 10 min | Seed data only |
+| `PAYPAL_SYNC_TRANSACTIONS` | In sandbox mode, on every start (and every 10 min) Pilot loads the sandbox account's last 31 days of activity and its live USD balance. Set `false` to turn it off. Needs **Transaction search** enabled on the app | On in sandbox mode; seed data in simulate mode |
+| `DATA_DIR` | Where the state file is written (`state.json`) | `server/.data` |
 | `PAYPAL_SIMULATED_APPROVAL_MS` | Simulate mode: delay before the simulated buyer-approval webhook | `3000` |
 | `PORT` | API port | `8787` |
 | `VITE_API_URL` | API origin for a deployed web build | Vite dev proxy to `/api` |
@@ -135,14 +138,14 @@ Pilot runs the same PayPal lifecycle in both modes, so reviewers can check it wi
 | --- | --- | --- |
 | Create order / subscription | `DEMO-*` ids, nothing sent to PayPal | Orders v2, Catalog Products, Billing Plans, Subscriptions |
 | Status updates | Simulated webhooks in PayPal's event shape (`CHECKOUT.ORDER.APPROVED` after 3s, `PAYMENT.CAPTURE.COMPLETED`, `BILLING.SUBSCRIPTION.ACTIVATED`, ...) | Signature-verified webhooks at `POST /api/paypal/webhook`, plus live polling of `GET /v2/checkout/orders/{id}` and `GET /v1/billing/subscriptions/{id}` |
-| Transactions | 12 months of seed data | Seed data plus the sandbox account's real activity (`PAYPAL_SYNC_TRANSACTIONS=true`) |
+| Transactions and balance | 12 months of seed data, $2,000 balance | Seed data plus the sandbox account's real activity, and its live balance, loaded on every start |
 
 Both paths go through one `WebhookProcessor` (dedup by event id, maps the event to the order or subscription Pilot created) and are pushed to every open tab over `GET /api/events` (Server-Sent Events). Each PayPal card shows its status history and where each step came from: *verified webhook*, *live from PayPal*, *PayPal API* or *simulated webhook*.
 
 **Connect a sandbox app**
 
 1. In the [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/applications/sandbox), create a sandbox REST app. Put its client id and secret in `.env` and set `PAYPAL_MODE=sandbox`.
-2. Optional, for live data: under the app's **Features**, enable **Transaction search** and set `PAYPAL_SYNC_TRANSACTIONS=true`. New sandbox transactions can take up to 3 hours to appear in Transaction Search.
+2. For live data: under the app's **Features**, enable **Transaction search** (it covers both Transaction Search and the Balances API). New sandbox transactions can take up to 3 hours to appear there; payments made in Pilot show up immediately because Pilot records them at capture.
 3. Webhooks need a public https URL. Deploy the API (see Render below) or tunnel localhost, e.g. `cloudflared tunnel --url http://localhost:8787` or `ngrok http 8787`. Register it and copy the printed id into `PAYPAL_WEBHOOK_ID`:
    ```bash
    npm run paypal:webhooks -- create https://<public-host>/api/paypal/webhook
@@ -151,7 +154,36 @@ Both paths go through one `WebhookProcessor` (dedup by event id, maps the event 
 4. Restart the server. `/api/health` shows `"paypal": "sandbox"` and `"paypalWebhooks": "verified"`; `GET /api/paypal/status` shows received webhooks and the last sync.
 5. Approve a purchase in Pilot, open **Complete in PayPal sandbox** and pay with a sandbox personal account (Developer Dashboard > Testing Tools > Sandbox Accounts). The card moves to *Buyer approved* (webhook, or the next 5s poll), then **Capture payment** completes it.
 
-Without a webhook (for example plain localhost) everything still works: the browser polls the live status every 5 seconds and PayPal's return page triggers an immediate refresh. Unverified, forged or replayed webhook deliveries are rejected (401) and never change state.
+Without a webhook (for example plain localhost) everything still works: the browser polls the live status every 5 seconds, and when PayPal redirects the approval popup back, the popup tells the server to re-read the status, tells the Pilot tab, and closes. Unverified, forged or replayed webhook deliveries are rejected (401) and never change state.
+
+## Data and persistence
+
+- **On every start** (sandbox mode) the server loads the sandbox account's transactions from the last 31 days and its live balance from PayPal, and refreshes them every 10 minutes. The balance replaces the demo $2,000; `/api/health` shows `"balanceSource": "paypal"` or `"seed"`.
+- **While it runs**, every proposal, its PayPal status history, and every payment captured in Pilot is written to `server/.data/state.json` (every 5 seconds when something changed, and on shutdown). A captured payment is added to the transactions and taken off the balance at once, keyed by PayPal's capture id so it isn't counted twice when Transaction Search catches up.
+- **After a restart** the server reloads that file, then refreshes from PayPal and continues from there.
+- **On Render's free plan** the disk is wiped on every deploy and whenever the service sleeps (about 15 minutes without traffic). The state file then starts empty, and the next start reloads transactions and balance from PayPal; proposals that were still open are gone and need to be asked again. A paid plan with a persistent disk, or a database, would keep them.
+
+## Why there is no login
+
+Pilot is a single-user demo: one fictional household's seed data, plus whatever the connected PayPal sandbox account holds. There is no per-user data to protect, so a login screen with shared demo credentials would add a step for judges without securing anything. The credentials that matter (PayPal client secret, LLM key) stay on the server and are never sent to the browser.
+
+A real multi-user version would need sign-in (for example PayPal's **Log in with PayPal** / OpenID Connect, which also gives each user's own PayPal identity), per-user storage, and per-user PayPal connections.
+
+## Limitations and next steps
+
+| Area | Today | Next step |
+| --- | --- | --- |
+| Users | Single user, no login (see above) | Log in with PayPal, per-user data |
+| Financial data | Generated seed transactions plus the PayPal **sandbox** account's activity and balance. No bank connection | Bank account aggregation with user consent; PayPal live API |
+| Balance | Read from the sandbox account that owns the app (the business account), then reduced locally by purchases made in Pilot until the next sync | Read the signed-in user's own balance |
+| Storage | One JSON file; on Render's free plan it resets on deploy and after ~15 min idle | A database (for example Render Postgres) |
+| Money movement | PayPal **sandbox** only; nothing real is charged | Live credentials and PayPal account review |
+| Autopay | Creates a real sandbox subscription, but Pilot doesn't record the recurring charges as transactions until Transaction Search reports them | Record `PAYMENT.SALE.COMPLETED` webhooks as transactions |
+| Elastic | Transactions are indexed at startup, queries still run in memory | Move queries to Elastic aggregations |
+| Channel3 | Live product search is wired but the endpoint is unconfirmed; the mock catalog answers otherwise | Confirm against Channel3's API docs |
+| API hardening | Open CORS, no rate limiting | Restrict to the web origin, add rate limits |
+| Advice | Verdicts follow a fixed rule (15% / 30% of income), not personalised financial advice | Disclaimers, user-set safety buffer |
+| Hosting | Render free plan sleeps after ~15 min idle; the first request then takes about a minute | Paid instance or keep-alive |
 
 ## Architecture
 

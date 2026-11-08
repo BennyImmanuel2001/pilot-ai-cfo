@@ -6,6 +6,9 @@ import {
   RecurringPayment,
   UpcomingBill,
   UserProfile,
+  BalanceInfo,
+  LiveSource,
+  TransactionSource,
 } from './types';
 import { seedTransactions, userProfile } from '../data/seed';
 import { startOfToday, daysBetween, ymd } from '../util/dates';
@@ -13,22 +16,40 @@ import { startOfToday, daysBetween, ymd } from '../util/dates';
 export class InMemoryRepo implements IRepo {
   private transactions: Transaction[];
   private seed: Transaction[];
-  private live: Transaction[] = [];
+  private live: Record<LiveSource, Transaction[]> = { paypal: [], pilot: [] };
   private _profile: UserProfile;
+  private _balance: BalanceInfo;
 
   constructor() {
     this.seed = seedTransactions;
     this.transactions = seedTransactions;
-    this._profile = userProfile;
+    this._profile = { ...userProfile };
+    this._balance = { value: userProfile.balance, source: 'seed' };
   }
 
-  replaceSource(_source: 'paypal', txns: Transaction[]): void {
-    this.live = txns.map(t => ({ ...t, source: 'paypal' as const }));
-    this.transactions = [...this.seed, ...this.live];
+  replaceSource(source: LiveSource, txns: Transaction[]): void {
+    this.live[source] = txns.map(t => ({ ...t, source }));
+    // A payment Pilot recorded at capture is the same PayPal transaction once Transaction Search
+    // catches up; keep Pilot's record (it is the buyer-side spend) and drop the duplicate.
+    const pilotIds = new Set(this.live.pilot.map(t => t.id));
+    this.transactions = [...this.seed, ...this.live.pilot, ...this.live.paypal.filter(t => !pilotIds.has(t.id))];
   }
 
-  countBySource(): { seed: number; paypal: number } {
-    return { seed: this.seed.length, paypal: this.live.length };
+  getSource(source: LiveSource): Transaction[] {
+    return [...this.live[source]];
+  }
+
+  countBySource(): Record<TransactionSource, number> {
+    return { seed: this.seed.length, paypal: this.live.paypal.length, pilot: this.live.pilot.length };
+  }
+
+  setBalance(info: BalanceInfo): void {
+    this._balance = { ...info, value: Math.round(info.value * 100) / 100 };
+    this._profile = { ...this._profile, balance: this._balance.value };
+  }
+
+  balanceInfo(): BalanceInfo {
+    return { ...this._balance };
   }
 
   profile(): UserProfile {
