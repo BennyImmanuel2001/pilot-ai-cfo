@@ -199,6 +199,14 @@ The model never moves money. `propose_*` tools only store a pending action. The 
 
 A Postman collection is in [`postman/pilot.postman_collection.json`](postman/pilot.postman_collection.json).
 
+## AI tools used
+
+| Tool | Where | How it is used |
+| --- | --- | --- |
+| **LLM with tool calling** (any OpenAI-compatible chat completions API; the hosted demo uses `<provider / model>`) | `server/src/agent/loop.ts`, `systemPrompt.ts`, `tools.ts` | The agent. Each chat turn runs a loop of up to 6 tool rounds: the model calls typed tools (`query_transactions`, `project_cashflow`, `find_product`, `affordability_verdict`, `detect_recurring`, `propose_paypal_order`, `propose_autopay`) whose arguments are validated with zod, writes the answer from their results, and designs the dashboard by calling `set_dashboard` with a JSON `DashboardSpec`. The spec is validated, repaired once by the model if invalid, then streamed to the browser. The model can only *propose* PayPal actions; money moves only after the user clicks Approve. |
+| **Scripted agent** (no AI, built in) | `server/src/agent/loop.ts` (`runMockAgent`) | Fallback when no LLM key is set or a call fails, so the app always runs. It calls the same tools. `/api/health` shows which one answered (`configured`, `fallback` or `mock`). |
+| **Kokoro-82M** (Apache-2.0 text-to-speech, run locally) | Demo video only | Voiceover of the demo video. |
+
 ## Sponsors used
 
 | Sponsor | How Pilot uses it |
