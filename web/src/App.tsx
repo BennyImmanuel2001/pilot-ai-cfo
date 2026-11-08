@@ -9,7 +9,7 @@ import { useChat } from './hooks/useChat';
 import { ActionsContext } from './contexts/ActionsContext';
 import { useToast } from './contexts/ToastContext';
 import { fetchHealth, subscribeStatus, type HealthInfo } from './lib/api';
-import { onPayPalReturn } from './lib/paypalReturn';
+import { closeApprovalWindow, onPayPalReturn } from './lib/paypalReturn';
 
 function useIsNarrow(maxWidth = 900) {
   const query = `(max-width: ${maxWidth - 1}px)`;
@@ -58,6 +58,8 @@ export default function App() {
   // just that order or subscription (the live status also arrives over /api/events).
   const { refreshAction } = chat;
   useEffect(() => onPayPalReturn(msg => {
+    closeApprovalWindow();
+    window.focus();
     if (msg.outcome !== 'success') {
       toast('PayPal approval was cancelled. Nothing was charged.');
       return;

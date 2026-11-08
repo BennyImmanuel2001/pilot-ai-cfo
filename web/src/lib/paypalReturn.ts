@@ -71,6 +71,28 @@ export function onPayPalReturn(handler: (msg: PayPalReturnMessage) => void): () 
   };
 }
 
+/** The approval window Pilot opened, so this tab can close it when PayPal sends the buyer back. */
+let approvalWindow: Window | null = null;
+
+/** Closes the approval window from the Pilot tab (works even where the window can't close itself). */
+export function closeApprovalWindow(): void {
+  try {
+    if (approvalWindow && !approvalWindow.closed) approvalWindow.close();
+  } catch {
+    // reference no longer usable
+  }
+  approvalWindow = null;
+}
+
+/** True when this page was opened by Pilot (window.open), so it is allowed to close itself. */
+export const openedByPilot = (): boolean => {
+  try {
+    return !!window.opener && !window.opener.closed;
+  } catch {
+    return false;
+  }
+};
+
 /** Opens PayPal's approval page in a centred popup; falls back to a new tab if popups are blocked. */
 export function openPayPal(url: string): void {
   const w = 480;
@@ -78,6 +100,6 @@ export function openPayPal(url: string): void {
   const left = Math.max(0, window.screenX + (window.outerWidth - w) / 2);
   const top = Math.max(0, window.screenY + (window.outerHeight - h) / 2);
   const popup = window.open(url, 'pilot-paypal', `popup=yes,width=${w},height=${h},left=${left},top=${top}`);
-  if (!popup) window.open(url, '_blank');
-  else popup.focus();
+  approvalWindow = popup ?? window.open(url, '_blank');
+  approvalWindow?.focus();
 }

@@ -1,22 +1,20 @@
 # Pilot: an AI CFO that decides, then acts
 
->Youtube video: https://youtu.be/DrGIVSED_ak
-
 > Ask your money a question. Get a decision, a dashboard, and a PayPal action.
 
 Pilot is a chat-driven financial agent for single-income households and gig workers. Ask "Can I afford a PS5?" and Pilot projects your cash flow to month end, returns **Yes / Wait / No** with the math, reshapes a live dashboard around the answer, and drafts a PayPal sandbox order that only goes through when you approve it.
 
 Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
-**Demo video:** _YouTube link_ · **Live demo:** _Render URL (optional)_ · **License:** [MIT](LICENSE)
+**Demo video:** [youtu.be/DrGIVSED_ak](https://youtu.be/DrGIVSED_ak) · **Live demo:** [pilot-web-hpsc.onrender.com](https://pilot-web-hpsc.onrender.com) (free Render instance: the first load after idle can take about a minute) · **License:** [MIT](LICENSE)
 
 ## Run it
 
 **Requirements:** Node.js 20 or newer (includes npm). Works on Windows, macOS and Linux. No accounts or API keys are needed for the first run.
 
 ```bash
-git clone <this repo>
-cd <repo folder>
+git clone https://github.com/BennyImmanuel2001/pilot-ai-cfo.git
+cd pilot-ai-cfo
 npm install
 npm run dev
 ```

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { notifyPayPalReturn } from '../lib/api';
-import { announceReturn, readReturnParams } from '../lib/paypalReturn';
+import { announceReturn, openedByPilot, readReturnParams } from '../lib/paypalReturn';
 import { PilotGlyph } from './layout/TopBar';
 
 /**
@@ -10,18 +10,20 @@ import { PilotGlyph } from './layout/TopBar';
  */
 export function PayPalReturn() {
   const [msg] = useState(readReturnParams);
-  const [closeFailed, setCloseFailed] = useState(false);
+  // Only a window Pilot opened may close itself; one opened from a link or bookmark cannot.
+  const [fromPilot] = useState(openedByPilot);
+  const [stillOpen, setStillOpen] = useState(false);
 
   useEffect(() => {
     // Strip the PayPal query so a refresh of this window doesn't report twice.
     window.history.replaceState(null, '', window.location.pathname);
     const finish = (actionId?: string) => {
+      // Tells the Pilot tab, which also closes this window if the browser lets it.
       announceReturn({ ...msg, actionId });
       window.setTimeout(() => {
         window.close();
-        // Browsers only let scripts close windows they opened; if this one stays, say so.
-        window.setTimeout(() => setCloseFailed(true), 300);
-      }, 900);
+        window.setTimeout(() => setStillOpen(true), 400);
+      }, 700);
     };
     if (msg.outcome === 'success' && (msg.token || msg.subscriptionId)) {
       notifyPayPalReturn({ token: msg.token, subscription_id: msg.subscriptionId })
@@ -40,12 +42,17 @@ export function PayPalReturn() {
         {ok ? <CheckCircle2 size={36} style={{ color: 'var(--success)' }} /> : <XCircle size={36} style={{ color: 'var(--muted)' }} />}
         <h1 className="text-lg font-semibold">{ok ? 'Approved in PayPal' : 'PayPal approval cancelled'}</h1>
         <p className="text-sm" style={{ color: 'var(--muted)' }}>
-          {closeFailed
-            ? 'You can close this window. Your Pilot tab has already been updated.'
-            : 'Returning you to Pilot…'}
+          {!stillOpen
+            ? 'Returning you to Pilot…'
+            : fromPilot
+              ? 'Your Pilot tab is updated. You can close this window.'
+              : ok
+                ? 'Pilot has the approval. Switch back to your Pilot tab to capture the payment, or open Pilot here.'
+                : 'Nothing was charged. Switch back to your Pilot tab, or open Pilot here.'}
         </p>
-        {closeFailed && (
-          <button className="btn-secondary" onClick={() => window.close()}>Close window</button>
+        {stillOpen && (
+          // Browsers block window.close() for windows a script didn't open, so offer a link instead.
+          <a className="btn-secondary" href={window.location.pathname}>Open Pilot</a>
         )}
       </div>
     </div>
