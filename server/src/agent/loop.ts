@@ -130,6 +130,37 @@ export async function runAgent(
   let proposedOrderId: string | undefined;
   let anyText = false;
   const emittedActions: PendingAction[] = [];
+  // What the model looked up, so a skipped propose_* step can be filled in (see ensureProposals).
+  let verdictPrice: number | undefined;
+  let productTitle: string | undefined;
+  let sawRecurring = false;
+
+  /**
+   * Live models sometimes give the verdict (or list the bills) but skip propose_paypal_order /
+   * propose_autopay, which would leave no Pay or Approve button. Propose it from the tool results
+   * the model already got. Still only a proposal: nothing reaches PayPal until the user approves.
+   */
+  const ensureProposals = async () => {
+    if (verdictPrice && !emittedActions.some(a => a.type === 'paypal_order')) {
+      const action = await executor('propose_paypal_order', { amount: verdictPrice, description: productTitle ?? 'Purchase' }) as PendingAction;
+      console.log('[Agent] model skipped propose_paypal_order, proposing it from the verdict');
+      proposedOrderId = action.id;
+      emittedActions.push(action);
+      callbacks.onAction(action);
+    }
+    if (sawRecurring && !emittedActions.some(a => a.type === 'autopay')) {
+      const all = repo.recurringPayments();
+      const candidate = all.find(r => /electric/i.test(r.merchant))
+        ?? all.find(r => r.method !== 'paypal' && r.category === 'utilities')
+        ?? all.find(r => r.method !== 'paypal');
+      if (candidate) {
+        const action = await executor('propose_autopay', { merchant: candidate.merchant, amount: Math.abs(candidate.amount), cadence: candidate.cadence }) as PendingAction;
+        console.log('[Agent] model skipped propose_autopay, proposing it for', candidate.merchant);
+        emittedActions.push(action);
+        callbacks.onAction(action);
+      }
+    }
+  };
 
   /**
    * Hands the rest of the turn to the scripted agent, which always produces text, a dashboard and
@@ -213,7 +244,18 @@ export async function runAgent(
       }
       let toolContent = JSON.stringify(result ?? null);
 
+      const ok = result && typeof result === 'object' && !('error' in result);
+      if (ok && name === 'affordability_verdict') {
+        const price = Number(args.price);
+        if (Number.isFinite(price) && price > 0) verdictPrice = Math.round(price * 100) / 100;
+      }
+      if (ok && name === 'find_product' && typeof (result as { title?: unknown }).title === 'string') {
+        productTitle = (result as { title: string }).title;
+      }
+      if (ok && name === 'detect_recurring') sawRecurring = true;
+
       if (name === 'set_dashboard') {
+        if (!dashboardEmitted) await ensureProposals();
         if (dashboardEmitted) {
           toolContent = JSON.stringify({ ok: true, note: 'Dashboard already set for this turn.' });
         } else {
@@ -253,6 +295,7 @@ export async function runAgent(
     if (dashboardEmitted && anyText) break;
   }
 
+  if (dashboardEmitted) await ensureProposals();
   if (dashboardEmitted && !anyText) {
     await streamText('Here is what I found. The dashboard has the details.', callbacks.onText);
   }
