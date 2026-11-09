@@ -142,7 +142,7 @@ export function buildToolDefinitions() {
         parameters: {
           type: 'object',
           properties: {
-            category: { type: 'string', description: 'Filter by category (e.g. groceries, restaurants, utilities, food delivery, transport, shopping, subscriptions, health, entertainment)' },
+            category: { type: 'string', description: 'Filter by category: groceries, restaurants, food delivery, rent, utilities, transport, shopping, subscriptions, health, entertainment, income. "food" covers groceries + restaurants + food delivery; "dining" covers restaurants + food delivery.' },
             from: { type: 'string', description: 'Start date YYYY-MM-DD (inclusive)' },
             to: { type: 'string', description: 'End date YYYY-MM-DD (inclusive)' },
             groupBy: { type: 'string', enum: ['month', 'category', 'merchant'], description: 'Aggregate results by this field' },

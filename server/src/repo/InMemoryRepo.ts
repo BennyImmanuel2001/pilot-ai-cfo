@@ -13,6 +13,30 @@ import {
 import { seedTransactions, userProfile } from '../data/seed';
 import { startOfToday, daysBetween, ymd } from '../util/dates';
 
+/**
+ * Everyday words a model (or user) uses for a group of categories. "food" must cover groceries,
+ * restaurants and delivery, not just the "food delivery" category whose name happens to contain it.
+ */
+const CATEGORY_ALIASES: Record<string, string[]> = {
+  food: ['groceries', 'restaurants', 'food delivery'],
+  'food and drink': ['groceries', 'restaurants', 'food delivery'],
+  dining: ['restaurants', 'food delivery'],
+  'eating out': ['restaurants', 'food delivery'],
+  takeout: ['food delivery', 'restaurants'],
+  grocery: ['groceries'],
+  bills: ['rent', 'utilities', 'subscriptions'],
+  housing: ['rent'],
+  travel: ['transport'],
+  gas: ['transport'],
+  fuel: ['transport'],
+  medical: ['health'],
+};
+
+export function categoryAliases(category: string): string[] {
+  const key = category.trim().toLowerCase();
+  return CATEGORY_ALIASES[key] ?? [key];
+}
+
 export class InMemoryRepo implements IRepo {
   private transactions: Transaction[];
   private seed: Transaction[];
@@ -64,8 +88,11 @@ export class InMemoryRepo implements IRepo {
     let txns = [...this.transactions];
 
     if (opts.category) {
-      const cat = opts.category.toLowerCase();
-      txns = txns.filter(t => t.category.toLowerCase().includes(cat));
+      const wanted = categoryAliases(opts.category);
+      txns = txns.filter(t => {
+        const c = t.category.toLowerCase();
+        return wanted.some(w => c.includes(w));
+      });
     }
     if (opts.from) txns = txns.filter(t => t.date >= opts.from!);
     if (opts.to) txns = txns.filter(t => t.date <= opts.to!);

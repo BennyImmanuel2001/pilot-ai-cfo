@@ -72,3 +72,12 @@ test('maps Transaction Search rows to transactions and skips empty ones', () => 
   assert.deepEqual(t, { id: 'pp-T1', date: '2026-11-02', merchant: 'E-Bike', category: 'shopping', amount: -999, method: 'paypal', recurring: false, source: 'paypal' });
   assert.equal(toTransaction({ transaction_info: { transaction_id: 'T2' } }), null);
 });
+
+test('"food" covers groceries, restaurants and delivery, not only the "food delivery" category', async () => {
+  const { InMemoryRepo, categoryAliases } = await import('../repo/InMemoryRepo');
+  assert.deepEqual(categoryAliases('Food'), ['groceries', 'restaurants', 'food delivery']);
+  assert.deepEqual(categoryAliases('utilities'), ['utilities']);
+  const repo = new InMemoryRepo();
+  const cats = new Set((repo.query({ category: 'food' }) as Array<{ category: string }>).map(t => t.category));
+  assert.deepEqual([...cats].sort(), ['food delivery', 'groceries', 'restaurants']);
+});
